@@ -29,6 +29,7 @@ __pycache__/
 *.tsbuildinfo
 
 # IDE / OS
+.local-notes/
 .vscode/
 .idea/
 .DS_Store

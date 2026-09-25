@@ -1,20 +1,21 @@
-# TaskFlow — Hairdrama Tech Assignment
+# TaskFlow
 
-TaskFlow is a small task-management application built for the Hairdrama Tech internship assignment. Users sign in with Google, create and assign tasks, mark assigned tasks as complete, and receive Gmail notifications when a task is created or completed.
-
-The code intentionally stays simple: the frontend handles presentation and authentication state, while the Flask API owns task rules, authorization checks, database access, and email notifications.
+TaskFlow is a task-management application for the Hairdrama Tech assignment.
+Users sign in with Google, create tasks, assign them to registered users, and
+mark tasks complete. The Gmail integration notifies the assignee on creation
+and the creator on completion.
 
 ## Deployment status
 
 - Frontend: https://hairdrama-task-manager-red.vercel.app
 - Backend health: https://flask-api-production-499c.up.railway.app/health
 - Repository: https://github.com/coderK1777/hairdrama-task-manager
-- Database: Supabase project `qweubbwocnjilqjxlnqz`.
 
-Both services are deployed and public HTTP checks pass. Production Google login
-still needs its Supabase redirect configuration and a browser test. Gmail sender
-configuration, two-account task tests, the follow-up permission migration, and
-reviewer access checks are pending. See `DEPLOYMENT_STATUS.md` for the current checks.
+The frontend and backend are deployed. Local Google login, the frontend build,
+lint, 13 backend/Gmail unit tests, and production HTTP/CORS checks have passed.
+Gmail sender authorization and delivery tests are pending. Production login,
+the two-user task flow, and application of the second database migration still
+need verification.
 
 ## Features
 
@@ -27,7 +28,6 @@ reviewer access checks are pending. See `DEPLOYMENT_STATUS.md` for the current c
 - Gmail API notification when a task is completed
 - Responsive dashboard UI
 - PostgreSQL schema and RLS policies in `/migrations`
-- Separate production-ready frontend/backend deployment
 
 ## Technology
 
@@ -40,73 +40,36 @@ reviewer access checks are pending. See `DEPLOYMENT_STATUS.md` for the current c
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    U[User Browser] --> N[Next.js Frontend]
-    N -->|Google OAuth| A[Supabase Auth]
-    A -->|Session / access token| N
-    N -->|Bearer token + API request| F[Flask API]
-    F -->|Verify Supabase user| A
-    F -->|Service role queries| D[(Supabase Postgres)]
-    F -->|OAuth 2.0 Gmail API| G[Gmail]
-    G --> E[Email Notification]
-```
+Next.js handles the interface and Supabase session. Google login returns through
+Supabase to `/auth/callback`, where the browser exchanges the authorization code
+for a session. Each API request includes the user's access token.
 
-### Why this split?
-
-The browser never receives the Supabase service-role key or Gmail refresh token. It only stores the normal Supabase user session. Every protected request includes the user's Supabase access token, and Flask verifies that token before applying business rules.
+Flask verifies the token, checks task permissions, and reads or writes Supabase
+using a server-only database key. After a task is saved or completed, Flask calls
+Gmail using a separate sender account's OAuth credentials.
 
 ## Project Structure
 
 ```text
-hairdrama-task-manager/
-├── frontend/
-│   ├── src/app/
-│   │   ├── auth/callback/
-│   │   ├── dashboard/
-│   │   └── login/
-│   ├── src/components/
-│   ├── src/lib/
-│   └── .env.example
-├── backend/
-│   ├── services/gmail_service.py
-│   ├── scripts/generate_gmail_token.py
-│   ├── app.py
-│   ├── Procfile
-│   ├── requirements.txt
-│   └── .env.example
-├── migrations/
-│   └── 202609250001_initial_schema.sql
-├── .env.example
-├── .gitignore
-└── README.md
+frontend/
+  src/app/          Login, callback, and dashboard pages
+  src/components/   Task form and task cards
+  src/lib/          Supabase client and API helpers
+backend/
+  app.py            Authentication, validation, and task endpoints
+  services/         Gmail integration
+  scripts/          Sender authorization helper
+  tests/            API and Gmail unit tests
+migrations/         Initial schema and follow-up permission migration
+scripts/            Read-only database verification
 ```
 
-## Database Model
+## Database
 
-### `profiles`
-
-Stores the application-facing identity for a Supabase Auth user.
-
-| Column | Purpose |
-| --- | --- |
-| `id` | Same UUID as `auth.users.id` |
-| `email` | User's Google email |
-| `full_name` | Display name from Google metadata |
-| `avatar_url` | Google profile image |
-
-### `tasks`
-
-| Column | Purpose |
-| --- | --- |
-| `id` | Task UUID |
-| `title` | Required title |
-| `description` | Optional details |
-| `status` | `pending` or `completed` |
-| `creator_id` | User who created the task |
-| `assignee_id` | User responsible for the task |
-| `created_at` | Creation timestamp |
-| `completed_at` | Set when task becomes completed |
+`profiles` stores the application identity linked to each Supabase Auth user.
+`tasks` references its creator and assignee, with a title, description, status,
+and creation/completion timestamps. Database triggers create profiles and
+maintain timestamps.
 
 ## API Endpoints
 
@@ -122,6 +85,11 @@ Stores the application-facing identity for a Supabase Auth user.
 All `/api/*` routes require `Authorization: Bearer <supabase_access_token>`.
 
 ## Local Setup
+
+Requires Node.js 22 or later and Python 3.14. Before starting, copy
+`frontend/.env.example` to `frontend/.env.local` and `backend/.env.example` to
+`backend/.env`, then fill in the values. Preserve existing environment files
+when updating a checkout.
 
 ### 1. Supabase
 
@@ -151,7 +119,7 @@ First Google login creates the Supabase Auth user; the database trigger creates 
 
 ### 3. Gmail API sender
 
-The app sends notification email from one application Gmail account. This keeps the assignment flow simple and avoids storing every user's Gmail credentials.
+The app sends notification email from one application Gmail account. Individual users do not need to authorize inbox access.
 
 1. Enable **Gmail API** in the Google Cloud project.
 2. Create a **Desktop application** OAuth client for the notification sender.
@@ -181,7 +149,6 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 python app.py
 ```
 
@@ -193,8 +160,7 @@ Check: `http://localhost:5000/health`
 
 ```bash
 cd frontend
-npm install
-cp .env.example .env.local
+npm ci
 npm run dev
 ```
 
@@ -298,55 +264,8 @@ Google sign-in, database-trigger, or actual Gmail delivery tests.
 
 If Gmail temporarily fails, the task operation still succeeds and the API returns `email_sent: false`. This prevents an email outage from losing task data.
 
-## Repository history
+## Limitations
 
-The supplied project folder did not contain a Git repository. Its initial commit
-records the existing application and the deployment preparation together. Later
-commits record subsequent changes as they happen; no development history is reconstructed.
-
-## Loom Video Checklist
-
-See `LOOM_WALKTHROUGH.md` for an eight-minute recording plan and
-`INTERVIEW_NOTES.md` for a file-by-file explanation with practice questions.
-
-Keep the video around the real request flow:
-
-1. Show Google login.
-2. Explain Supabase session/access token.
-3. Show the migration and relationships.
-4. Create a task for another user.
-5. Show the Flask create-task endpoint.
-6. Show the Gmail service and the received email.
-7. Complete the task and show the completion email.
-8. Explain why secrets are only in backend environment variables.
-9. Show deployed Vercel/Railway URLs.
-10. Briefly show GitHub structure and commit history.
-
-## Technical Questions You Should Be Able to Answer
-
-- Why use the Supabase user access token between Next.js and Flask?
-- What is the difference between the anon key and service-role key?
-- Why must the service-role key never be exposed in `NEXT_PUBLIC_*` variables?
-- What does OAuth 2.0 do during Google login?
-- What is a refresh token and why is it used for Gmail?
-- Why use `gmail.send` instead of broader Gmail scopes?
-- Why does task creation still succeed when email sending fails?
-- Why are `creator_id` and `assignee_id` foreign keys?
-- What does Row Level Security protect?
-- Why verify authorization in Flask even with RLS enabled?
-- Why is the frontend on Vercel and Flask on Railway?
-- What does Gunicorn do in production?
-
-## Small Improvements If Time Remains
-
-Only add these after the required assignment works end-to-end:
-
-- task due date
-- priority
-- search/filter
-- pagination
-- retry queue for failed emails
-- unit/API tests
-- optimistic UI updates
-
-For the interview assignment, reliability and explainability are more valuable than adding many extra features.
+Notifications run during the API request; there is no background retry queue.
+Task lists are not paginated. Accounts must sign in once before other users can
+assign tasks to them.
