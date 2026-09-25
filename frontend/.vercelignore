@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+node_modules
+.next
+.vercel
+*.log
+*.tsbuildinfo
+credentials.json
+client_secret*.json
+token.json
+*.pem
+*.key
