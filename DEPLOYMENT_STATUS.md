@@ -41,7 +41,7 @@ This is a work-in-progress record, not a production completion report.
 - Apply the prepared second migration to restrict direct database writes so clients cannot bypass Flask rules and notifications.
 - Verify foreign keys, indexes, RLS, profile trigger, and timestamps against the live database.
 - Browser-based, two-account end-to-end testing; current session has no browser-control tool.
-- Complete GitHub push and confirm repository access for company reviewers.
+- Confirm public visibility or invite company reviewers to the private repository.
 - Update this record as the remaining integration checks are completed.
 
 Frontend: https://hairdrama-task-manager-red.vercel.app
@@ -73,3 +73,22 @@ reviewers need invitations unless the repository is changed to public.
 - Git installed locally from the official MinGit release; SHA256 verified.
 - GitHub CLI authenticated as `coderK1777`.
 - Added the eight-minute Loom plan and a file-by-file interview guide.
+- Pushed the initial commit `a82b047` to GitHub `main` and verified the remote matches.
+- Scanned all 40 initial committed files for secret patterns and configured private credentials; no actual secrets found.
+- Checked all committed blobs against configured private credentials; none are present in history.
+- Verified `.env` files, deployment credentials, dependencies, and build artifacts are ignored.
+
+## Next account-owner actions
+
+1. Supabase Auth URL Configuration: set Site URL to the Vercel origin above and
+   allow `https://hairdrama-task-manager-red.vercel.app/auth/callback` alongside the
+   local callback. Production browser login has not yet been confirmed.
+2. Supabase SQL Editor: apply `migrations/202609250002_api_write_permissions.sql`,
+   then run `scripts/verify_database.sql`. No rows are removed by the migration.
+3. Google Cloud: enable Gmail API, create a Desktop OAuth client for the app sender,
+   and save the sender settings in ignored `backend/.env`. Complete the helper's
+   Google consent before configuring the same variables in Railway.
+4. Run the two-account browser/inbox checks in `LOOM_WALKTHROUGH.md`.
+
+The cloud services are deployed, but full production acceptance is pending these
+checks. No claim of verified Gmail delivery or completed production task flow is made.
